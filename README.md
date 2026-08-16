@@ -139,4 +139,4 @@ Bug reports and pull requests are welcome. Please run `swift test` before openin
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[0BSD](https://spdx.org/licenses/0BSD.html). See [LICENSE](LICENSE). No attribution required.
