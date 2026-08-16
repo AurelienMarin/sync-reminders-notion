@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.aumarin.reminders-stats</string>
+	<key>CFBundleName</key>
+	<string>reminders-stats</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Read your Apple Reminders to compute on-time and overdue stats for Notion.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Read your Apple Reminders to compute on-time and overdue stats for Notion.</string>
+</dict>
+</plist>

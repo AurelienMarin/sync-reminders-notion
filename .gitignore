@@ -1,0 +1,37 @@
+# Swift / Xcode
+.build/
+.swiftpm/
+Packages/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# SwiftPM local
+Package.resolved
+
+# Secrets and local config (never commit a real token)
+.env
+.env.*
+!.env.example
+*.pem
+.netrc
+config.toml
+!config.example.toml
+
+# OS / editor
+.DS_Store
+.AppleDouble
+.LSOverride
+*~
+*.swp
+.idea/
+.vscode/
+*.code-workspace
+
+# Logs and local state copies
+*.log
+last_success

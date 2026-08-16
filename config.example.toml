@@ -1,0 +1,7 @@
+# Copy to ~/.config/reminders-stats/config.toml
+# Create a Notion internal integration, share one page with it, and paste the values below.
+# List names must match Apple Reminders exactly (see `reminders-stats lists`).
+
+notion_token = "secret_replace_me"
+notion_page_id = "replace_me"
+lists = ["Work", "Personal"]
