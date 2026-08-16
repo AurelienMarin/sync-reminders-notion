@@ -1,15 +1,15 @@
 import Foundation
 
-public struct StatsEngine: Sendable {
-    public var calendar: Calendar
-    public var now: Date
+struct StatsEngine: Sendable {
+    var calendar: Calendar
+    var now: Date
 
-    public init(calendar: Calendar = .current, now: Date = Date()) {
+    init(calendar: Calendar = .current, now: Date = Date()) {
         self.calendar = calendar
         self.now = now
     }
 
-    public func compute(reminders: [ReminderRecord], listNames: [String]) -> DashboardStats {
+    func compute(reminders: [ReminderRecord], listNames: [String]) -> DashboardStats {
         let allowed = Set(listNames)
         let included = reminders.filter { allowed.contains($0.listName) }
         let overall = stats(for: included, name: "Overall")
@@ -19,7 +19,7 @@ public struct StatsEngine: Sendable {
         return DashboardStats(overall: overall, byList: byList)
     }
 
-    public func openInventory(reminders: [ReminderRecord], listNames: [String]) -> OpenInventory {
+    func openInventory(reminders: [ReminderRecord], listNames: [String]) -> OpenInventory {
         let allowed = Set(listNames)
         var overdue: [OpenReminder] = []
         var open: [OpenReminder] = []
@@ -37,14 +37,7 @@ public struct StatsEngine: Sendable {
             }
         }
         overdue.sort { dueSortKey($0.due) < dueSortKey($1.due) }
-        open.sort { lhs, rhs in
-            switch (lhs.due, rhs.due) {
-            case (nil, nil): return lhs.title < rhs.title
-            case (nil, _): return false
-            case (_, nil): return true
-            default: return dueSortKey(lhs.due) < dueSortKey(rhs.due)
-            }
-        }
+        open.sort { dueSortKey($0.due) < dueSortKey($1.due) }
         return OpenInventory(overdue: overdue, open: open)
     }
 
@@ -117,7 +110,8 @@ public struct StatsEngine: Sendable {
         case let .timed(deadline):
             return completion <= deadline
         case let .dateOnly(year, month, day):
-            return compare(ymd(completion), (year, month, day)) != .orderedDescending
+            guard let dueDay = dateOnly(year: year, month: month, day: day) else { return false }
+            return calendar.compare(completion, to: dueDay, toGranularity: .day) != .orderedDescending
         }
     }
 
@@ -127,8 +121,17 @@ public struct StatsEngine: Sendable {
         case let .timed(deadline):
             return now > deadline
         case let .dateOnly(year, month, day):
-            return compare(ymd(now), (year, month, day)) == .orderedDescending
+            guard let dueDay = dateOnly(year: year, month: month, day: day) else { return false }
+            return calendar.compare(now, to: dueDay, toGranularity: .day) == .orderedDescending
         }
+    }
+
+    private func dateOnly(year: Int, month: Int, day: Int) -> Date? {
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        return calendar.date(from: parts)
     }
 
     private func earlySeconds(completion: Date, due: ReminderRecord.Due) -> TimeInterval {
@@ -147,17 +150,6 @@ public struct StatsEngine: Sendable {
         }
     }
 
-    private func ymd(_ date: Date) -> (Int, Int, Int) {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
-        return (parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
-    }
-
-    private func compare(_ lhs: (Int, Int, Int), _ rhs: (Int, Int, Int)) -> ComparisonResult {
-        if lhs.0 != rhs.0 { return lhs.0 < rhs.0 ? .orderedAscending : .orderedDescending }
-        if lhs.1 != rhs.1 { return lhs.1 < rhs.1 ? .orderedAscending : .orderedDescending }
-        if lhs.2 != rhs.2 { return lhs.2 < rhs.2 ? .orderedAscending : .orderedDescending }
-        return .orderedSame
-    }
 }
 
 private extension ReminderRecord {

@@ -9,9 +9,6 @@ struct RemindersStatsCommand {
         let runner = AppRunner(
             paths: paths,
             environment: ProcessInfo.processInfo.environment,
-            reminders: EventKitReminderStore(),
-            makeNotion: { NotionClient(token: $0) },
-            agent: LaunchAgentInstaller(paths: paths),
             currentBinary: URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
         )
         let code = await runner.run(arguments: CommandLine.arguments)

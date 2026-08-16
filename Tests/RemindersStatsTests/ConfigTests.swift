@@ -48,21 +48,21 @@ final class ConfigTests: XCTestCase {
 
 final class ListSelectionTests: XCTestCase {
     func testEmptyAllowListIsInvalid() {
-        XCTAssertThrowsError(try ListSelection.validate(allowList: [], available: ["Work"])) { error in
-            XCTAssertEqual(error as? ListSelection.Error, .emptyAllowList)
+        XCTAssertThrowsError(try validateLists(allowList: [], available: ["Work"])) { error in
+            XCTAssertEqual(error as? ListError, .emptyAllowList)
         }
     }
 
     func testUnknownNamesAreInvalid() {
-        XCTAssertThrowsError(try ListSelection.validate(allowList: ["Work", "Nope"], available: ["Work", "Personal"])) { error in
+        XCTAssertThrowsError(try validateLists(allowList: ["Work", "Nope"], available: ["Work", "Personal"])) { error in
             XCTAssertEqual(
-                error as? ListSelection.Error,
+                error as? ListError,
                 .unknownLists(unknown: ["Nope"], available: ["Work", "Personal"])
             )
         }
     }
 
     func testExactNamesPass() throws {
-        try ListSelection.validate(allowList: ["Work"], available: ["Work", "Personal"])
+        try validateLists(allowList: ["Work"], available: ["Work", "Personal"])
     }
 }

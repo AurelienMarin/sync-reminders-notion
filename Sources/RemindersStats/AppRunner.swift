@@ -1,36 +1,71 @@
 import Foundation
 
+enum Command: Equatable {
+    case lists
+    case sync(force: Bool)
+    case installAgent
+    case uninstallAgent
+    case help
+}
+
+enum CommandError: Error, Equatable {
+    case unknownCommand(String)
+}
+
+func parseCommand(_ args: [String]) throws -> Command {
+    let commandArgs = Array(args.dropFirst())
+    if commandArgs.isEmpty { return .help }
+    switch commandArgs[0] {
+    case "lists":
+        return .lists
+    case "sync":
+        return .sync(force: commandArgs.contains("--force"))
+    case "install-agent":
+        return .installAgent
+    case "uninstall-agent":
+        return .uninstallAgent
+    case "help", "--help", "-h":
+        return .help
+    default:
+        throw CommandError.unknownCommand(commandArgs[0])
+    }
+}
+
+enum ListError: Error, Equatable {
+    case emptyAllowList
+    case unknownLists(unknown: [String], available: [String])
+}
+
+func validateLists(allowList: [String], available: [String]) throws {
+    if allowList.isEmpty { throw ListError.emptyAllowList }
+    let unknown = allowList.filter { !Set(available).contains($0) }
+    if !unknown.isEmpty {
+        throw ListError.unknownLists(unknown: unknown, available: available)
+    }
+}
+
 public struct AppRunner: Sendable {
-    public var paths: AppPaths
-    public var environment: [String: String]
-    public var reminders: any ReminderReading
-    public var makeNotion: @Sendable (String) -> any NotionPublishing
-    public var now: @Sendable () -> Date
-    public var timeZone: TimeZone
-    public var agent: any AgentInstalling
-    public var currentBinary: URL
-    public var writeStdout: @Sendable (String) -> Void
-    public var writeStderr: @Sendable (String) -> Void
+    var paths: AppPaths
+    var environment: [String: String]
+    var now: @Sendable () -> Date
+    var timeZone: TimeZone
+    var currentBinary: URL
+    var writeStdout: @Sendable (String) -> Void
+    var writeStderr: @Sendable (String) -> Void
 
     public init(
         paths: AppPaths,
-        environment: [String: String],
-        reminders: any ReminderReading,
-        makeNotion: @escaping @Sendable (String) -> any NotionPublishing,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         now: @escaping @Sendable () -> Date = { Date() },
         timeZone: TimeZone = .current,
-        agent: any AgentInstalling,
         currentBinary: URL,
         writeStdout: @escaping @Sendable (String) -> Void = { print($0, terminator: "") },
         writeStderr: @escaping @Sendable (String) -> Void = { fputs($0, stderr) }
     ) {
         self.paths = paths
         self.environment = environment
-        self.reminders = reminders
-        self.makeNotion = makeNotion
         self.now = now
         self.timeZone = timeZone
-        self.agent = agent
         self.currentBinary = currentBinary
         self.writeStdout = writeStdout
         self.writeStderr = writeStderr
@@ -38,28 +73,24 @@ public struct AppRunner: Sendable {
 
     public func run(arguments: [String]) async -> Int32 {
         do {
-            let command = try CommandParser.parse(arguments)
-            switch command {
+            switch try parseCommand(arguments) {
             case .help:
                 writeStdout(Self.helpText)
                 return 0
             case .lists:
-                try await reminders.requestAccess()
-                let names = try await reminders.listNames()
-                if names.isEmpty {
-                    writeStdout("No Reminders lists found.\n")
-                } else {
-                    writeStdout(names.joined(separator: "\n") + "\n")
-                }
+                let store = EventKitReminderStore()
+                try await store.requestAccess()
+                let names = try await store.listNames()
+                writeStdout(names.isEmpty ? "No Reminders lists found.\n" : names.joined(separator: "\n") + "\n")
                 return 0
             case let .sync(force):
                 return await sync(force: force)
             case .installAgent:
-                try agent.install(binarySource: currentBinary)
+                try LaunchAgentInstaller(paths: paths).install(binarySource: currentBinary)
                 writeStdout("Installed LaunchAgent at \(paths.launchAgent.path)\n")
                 return 0
             case .uninstallAgent:
-                try agent.uninstall()
+                try LaunchAgentInstaller(paths: paths).uninstall()
                 writeStdout("Removed LaunchAgent.\n")
                 return 0
             }
@@ -93,23 +124,27 @@ public struct AppRunner: Sendable {
 
         do {
             let config = try AppConfig.load(from: paths.config, environment: environment)
-            try await reminders.requestAccess()
-            let available = try await reminders.listNames()
-            try ListSelection.validate(allowList: config.lists, available: available)
-            let remindersInLists = try await reminders.fetchReminders(inListNames: config.lists)
-            let engine = StatsEngine.production(now: timestamp, timeZone: timeZone)
+            let store = EventKitReminderStore()
+            try await store.requestAccess()
+            let available = try await store.listNames()
+            try validateLists(allowList: config.lists, available: available)
+            let remindersInLists = try await store.fetchReminders(inListNames: config.lists)
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            calendar.firstWeekday = 2
+            calendar.minimumDaysInFirstWeek = 4
+            let engine = StatsEngine(calendar: calendar, now: timestamp)
             let stats = engine.compute(reminders: remindersInLists, listNames: config.lists)
             let inventory = engine.openInventory(reminders: remindersInLists, listNames: config.lists)
-            let text = DashboardRenderer.text(stats: stats, updatedAt: timestamp, timeZone: timeZone)
-            writeStdout(text)
             let blocks = DashboardRenderer.blocks(
                 stats: stats,
                 updatedAt: timestamp,
                 timeZone: timeZone,
                 inventory: inventory
             )
-            try await makeNotion(config.notionToken).replacePageBody(pageId: config.notionPageId, blocks: blocks)
+            try await NotionClient(token: config.notionToken).replacePageBody(pageId: config.notionPageId, blocks: blocks)
             try stamp.markSuccess(at: timestamp)
+            writeStdout("Published Notion page \(config.notionPageId)\n")
             log("published Notion page \(config.notionPageId)")
             return 0
         } catch {
@@ -140,14 +175,14 @@ public struct AppRunner: Sendable {
             return "Could not read config at \(path). Copy config.example.toml to \(paths.config.path) and fill it in."
         case AppConfig.Error.missingField(let field):
             return "Config is missing \(field)."
-        case ListSelection.Error.emptyAllowList:
+        case ListError.emptyAllowList:
             return "Config lists is empty. Run `reminders-stats lists` and add names to \(paths.config.path)."
-        case ListSelection.Error.unknownLists(let unknown, let available):
+        case ListError.unknownLists(let unknown, let available):
             return """
             Unknown Reminders list(s): \(unknown.joined(separator: ", ")).
             Available: \(available.joined(separator: ", "))
             """
-        case CommandParser.Error.unknownCommand(let name):
+        case CommandError.unknownCommand(let name):
             return "Unknown command \(name).\n\(Self.helpText)"
         default:
             return String(describing: error)
@@ -167,14 +202,4 @@ public struct AppRunner: Sendable {
     The tool skips sync when the last successful Notion write was less than 12 hours ago.
 
     """
-}
-
-extension StatsEngine {
-    public static func production(now: Date = Date(), timeZone: TimeZone = .current) -> StatsEngine {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        calendar.firstWeekday = 2
-        calendar.minimumDaysInFirstWeek = 4
-        return StatsEngine(calendar: calendar, now: now)
-    }
 }

@@ -1,12 +1,10 @@
 import EventKit
 import Foundation
 
-public final class EventKitReminderStore: ReminderReading, @unchecked Sendable {
+final class EventKitReminderStore: @unchecked Sendable {
     private let store = EKEventStore()
 
-    public init() {}
-
-    public func requestAccess() async throws {
+    func requestAccess() async throws {
         let status = EKEventStore.authorizationStatus(for: .reminder)
         if status == .fullAccess { return }
         if status == .denied || status == .restricted {
@@ -18,11 +16,11 @@ public final class EventKitReminderStore: ReminderReading, @unchecked Sendable {
         }
     }
 
-    public func listNames() async throws -> [String] {
+    func listNames() async throws -> [String] {
         store.calendars(for: .reminder).map(\.title).sorted()
     }
 
-    public func fetchReminders(inListNames names: [String]) async throws -> [ReminderRecord] {
+    func fetchReminders(inListNames names: [String]) async throws -> [ReminderRecord] {
         let wanted = Set(names)
         let calendars = store.calendars(for: .reminder).filter { wanted.contains($0.title) }
         let completed = store.predicateForCompletedReminders(

@@ -1,15 +1,15 @@
 import Foundation
 
-public struct LaunchAgentInstaller: AgentInstalling {
-    public var paths: AppPaths
-    public var uid: uid_t
+struct LaunchAgentInstaller {
+    var paths: AppPaths
+    var uid: uid_t
 
-    public init(paths: AppPaths, uid: uid_t = getuid()) {
+    init(paths: AppPaths, uid: uid_t = getuid()) {
         self.paths = paths
         self.uid = uid
     }
 
-    public func install(binarySource: URL) throws {
+    func install(binarySource: URL) throws {
         let fm = FileManager.default
         let destDir = paths.installBinary.deletingLastPathComponent()
         try fm.createDirectory(at: destDir, withIntermediateDirectories: true)
@@ -51,7 +51,7 @@ public struct LaunchAgentInstaller: AgentInstalling {
         _ = try run("/bin/launchctl", ["bootstrap", "gui/\(uid)", paths.launchAgent.path])
     }
 
-    public func uninstall() throws {
+    func uninstall() throws {
         _ = try? run("/bin/launchctl", ["bootout", "gui/\(uid)", paths.launchAgent.path])
         try? FileManager.default.removeItem(at: paths.launchAgent)
     }
@@ -75,7 +75,7 @@ public struct LaunchAgentInstaller: AgentInstalling {
     }
 }
 
-public enum AgentError: Error, LocalizedError {
+enum AgentError: Error, LocalizedError {
     case commandFailed(String, String)
 
     public var errorDescription: String? {

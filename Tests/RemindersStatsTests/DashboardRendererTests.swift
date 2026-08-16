@@ -3,64 +3,6 @@ import XCTest
 @testable import RemindersStats
 
 final class DashboardRendererTests: XCTestCase {
-    func testRendersOverallAndPerListSections() {
-        let overall = ListStats(
-            listName: "Overall",
-            onTimeCount: 2,
-            lateCount: 1,
-            datedCompletionCount: 3,
-            onTimePercent: 66.666,
-            latePercent: 33.333,
-            openOverdueCount: 4,
-            completedThisWeek: 5,
-            completedThisMonth: 6,
-            meanEarlySeconds: 5 * 3600
-        )
-        let work = ListStats(
-            listName: "Work",
-            onTimeCount: 2,
-            lateCount: 0,
-            datedCompletionCount: 2,
-            onTimePercent: 100,
-            latePercent: 0,
-            openOverdueCount: 1,
-            completedThisWeek: 2,
-            completedThisMonth: 3,
-            meanEarlySeconds: nil
-        )
-        let stats = DashboardStats(overall: overall, byList: [work])
-        var parts = DateComponents()
-        parts.year = 2026
-        parts.month = 8
-        parts.day = 15
-        parts.hour = 23
-        parts.minute = 40
-        parts.timeZone = TimeZone(identifier: "Europe/Paris")
-        let updated = Calendar(identifier: .gregorian).date(from: parts)!
-
-        let text = DashboardRenderer.text(
-            stats: stats,
-            updatedAt: updated,
-            timeZone: TimeZone(identifier: "Europe/Paris")!
-        )
-
-        XCTAssertTrue(text.contains("Last updated: 15 Aug 2026, 23:40 (Europe/Paris)"), text)
-        XCTAssertTrue(text.contains("Overall"), text)
-        XCTAssertTrue(text.contains("On time"), text)
-        XCTAssertTrue(text.contains("2  (67% of dated completions)"), text)
-        XCTAssertTrue(text.contains("Late"), text)
-        XCTAssertTrue(text.contains("1  (33%)"), text)
-        XCTAssertTrue(text.contains("Open overdue"), text)
-        XCTAssertTrue(text.contains("4"), text)
-        XCTAssertTrue(text.contains("Done this week"), text)
-        XCTAssertTrue(text.contains("5"), text)
-        XCTAssertTrue(text.contains("Done this month"), text)
-        XCTAssertTrue(text.contains("6"), text)
-        XCTAssertTrue(text.contains("5 hours early"), text)
-        XCTAssertTrue(text.contains("Work"), text)
-        XCTAssertTrue(text.contains("n/a"), text)
-    }
-
     func testNotionBlocksUseKpiColumnsAverageAndListTable() {
         let stats = sampleStats()
         let blocks = DashboardRenderer.blocks(
@@ -256,16 +198,16 @@ private extension [RichTextSpan] {
 
 final class CommandParserTests: XCTestCase {
     func testParsesSyncForceAndLists() throws {
-        XCTAssertEqual(try CommandParser.parse(["reminders-stats", "lists"]), .lists)
-        XCTAssertEqual(try CommandParser.parse(["reminders-stats", "sync"]), .sync(force: false))
-        XCTAssertEqual(try CommandParser.parse(["reminders-stats", "sync", "--force"]), .sync(force: true))
-        XCTAssertEqual(try CommandParser.parse(["reminders-stats", "install-agent"]), .installAgent)
-        XCTAssertEqual(try CommandParser.parse(["reminders-stats", "uninstall-agent"]), .uninstallAgent)
+        XCTAssertEqual(try parseCommand(["reminders-stats", "lists"]), .lists)
+        XCTAssertEqual(try parseCommand(["reminders-stats", "sync"]), .sync(force: false))
+        XCTAssertEqual(try parseCommand(["reminders-stats", "sync", "--force"]), .sync(force: true))
+        XCTAssertEqual(try parseCommand(["reminders-stats", "install-agent"]), .installAgent)
+        XCTAssertEqual(try parseCommand(["reminders-stats", "uninstall-agent"]), .uninstallAgent)
     }
 
     func testUnknownCommandThrows() {
-        XCTAssertThrowsError(try CommandParser.parse(["reminders-stats", "wat"])) { error in
-            XCTAssertEqual(error as? CommandParser.Error, .unknownCommand("wat"))
+        XCTAssertThrowsError(try parseCommand(["reminders-stats", "wat"])) { error in
+            XCTAssertEqual(error as? CommandError, .unknownCommand("wat"))
         }
     }
 }

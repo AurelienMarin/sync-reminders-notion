@@ -1,23 +1,17 @@
 import Foundation
 
-public struct AppConfig: Equatable, Sendable {
-    public var notionToken: String
-    public var notionPageId: String
-    public var lists: [String]
+struct AppConfig: Equatable, Sendable {
+    var notionToken: String
+    var notionPageId: String
+    var lists: [String]
 
-    public init(notionToken: String, notionPageId: String, lists: [String]) {
-        self.notionToken = notionToken
-        self.notionPageId = notionPageId
-        self.lists = lists
-    }
-
-    public enum Error: Swift.Error, Equatable {
+    enum Error: Swift.Error, Equatable {
         case missingField(String)
         case invalidSyntax(String)
         case unreadableFile(String)
     }
 
-    public static func parse(_ text: String, environment: [String: String] = ProcessInfo.processInfo.environment) throws -> AppConfig {
+    static func parse(_ text: String, environment: [String: String] = ProcessInfo.processInfo.environment) throws -> AppConfig {
         var token: String?
         var pageId: String?
         var lists: [String] = []
@@ -51,7 +45,7 @@ public struct AppConfig: Equatable, Sendable {
         return AppConfig(notionToken: token, notionPageId: pageId, lists: lists)
     }
 
-    public static func load(
+    static func load(
         from url: URL,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> AppConfig {
@@ -81,18 +75,3 @@ public struct AppConfig: Equatable, Sendable {
     }
 }
 
-public enum ListSelection {
-    public enum Error: Swift.Error, Equatable {
-        case emptyAllowList
-        case unknownLists(unknown: [String], available: [String])
-    }
-
-    public static func validate(allowList: [String], available: [String]) throws {
-        if allowList.isEmpty { throw Error.emptyAllowList }
-        let availableSet = Set(available)
-        let unknown = allowList.filter { !availableSet.contains($0) }
-        if !unknown.isEmpty {
-            throw Error.unknownLists(unknown: unknown, available: available)
-        }
-    }
-}

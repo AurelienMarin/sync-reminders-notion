@@ -1,38 +1,23 @@
 import Foundation
 
-public struct NotionClient: NotionPublishing {
-    public var token: String
-    public var session: URLSession
-    public var apiVersion: String
+struct NotionClient: Sendable {
+    var token: String
+    var session: URLSession
 
-    public init(token: String, session: URLSession = .shared, apiVersion: String = "2022-06-28") {
+    init(token: String, session: URLSession = .shared) {
         self.token = token
         self.session = session
-        self.apiVersion = apiVersion
     }
 
-    public func replacePageBody(pageId: String, blocks: [NotionBlock]) async throws {
-        var cursor: String?
-        repeat {
-            let (ids, next) = try await listChildren(pageId: pageId, cursor: cursor)
-            for id in ids {
-                try await deleteBlock(id: id)
-            }
-            cursor = next
-        } while cursor != nil
+    func replacePageBody(pageId: String, blocks: [NotionBlock]) async throws {
+        for id in try await listAllChildren(parentId: pageId).compactMap({ $0["id"] as? String }) {
+            try await deleteBlock(id: id)
+        }
 
         if !blocks.isEmpty {
             try await append(pageId: pageId, blocks: blocks)
             try await linkOverdueCard(pageId: pageId)
         }
-    }
-
-    private func listChildren(pageId: String, cursor: String?) async throws -> ([String], String?) {
-        let json = try await listChildrenJSON(parentId: pageId, cursor: cursor)
-        let results = json["results"] as? [[String: Any]] ?? []
-        let ids = results.compactMap { $0["id"] as? String }
-        let next = json["has_more"] as? Bool == true ? json["next_cursor"] as? String : nil
-        return (ids, next)
     }
 
     private func listAllChildren(parentId: String) async throws -> [[String: Any]] {
@@ -104,7 +89,7 @@ public struct NotionClient: NotionPublishing {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(apiVersion, forHTTPHeaderField: "Notion-Version")
+        request.setValue("2022-06-28", forHTTPHeaderField: "Notion-Version")
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -130,25 +115,6 @@ enum NotionJSON {
         switch block {
         case let .heading2(text):
             return typed("heading_2", text)
-        case let .heading3(text):
-            return typed("heading_3", text)
-        case let .callout(text):
-            return [
-                "object": "block",
-                "type": "callout",
-                "callout": [
-                    "rich_text": rich([RichTextSpan(text: text)]),
-                    "icon": ["type": "emoji", "emoji": "📊"],
-                ],
-            ]
-        case let .bulleted(text):
-            return [
-                "object": "block",
-                "type": "bulleted_list_item",
-                "bulleted_list_item": [
-                    "rich_text": rich([RichTextSpan(text: text)]),
-                ],
-            ]
         case let .paragraph(spans):
             return [
                 "object": "block",
